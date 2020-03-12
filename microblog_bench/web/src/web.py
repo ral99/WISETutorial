@@ -24,8 +24,12 @@ class ServiceClientFactory:
     server = random.choice(self._conf["authentication"])
     return wise_auth.Client(server["hostname"], server["port"])
 
-  def get_inbox_client(self):
-    server = random.choice(self._conf["inbox"])
+  def get_inbox_push_client(self):
+    server = random.choice(self._conf["inbox_push"])
+    return wise_inbox.Client(server["hostname"], server["port"])
+
+  def get_inbox_fetch_client(self):
+    server = random.choice(self._conf["inbox_fetch"])
     return wise_inbox.Client(server["hostname"], server["port"])
 
   def get_microblog_client(self):
@@ -119,7 +123,7 @@ def subscribe_to_user(user_id):
 def inbox():
   n = int(flask.request.args.get("n", 16))
   offset = int(flask.request.args.get("offset", 0))
-  inbox_cl = cl_factory.get_inbox_client()
+  inbox_cl = cl_factory.get_inbox_fetch_client()
   microblog_cl = cl_factory.get_microblog_client()
   posts = []
   for message in inbox_cl.fetch(inbox_name=("%s" % flask.g.account.id), n=n,

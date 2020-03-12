@@ -11,9 +11,15 @@ else
 fi
 
 # Start the server.
-if [ $1 = "py" ]
+if [ $1 = "push" ]
 then
   mkdir -p logs
-  nohup python $PYFLAGS src/py/server.py --ip_address $2 --port $3 --thread_pool_size $4 --db_host $5 > logs/error.log 2>&1 &
+  nohup python $PYFLAGS src/py/server_push.py --ip_address $2 --port $3 --thread_pool_size $4 --db_host $5 > logs/error.log 2>&1 &
+  echo "$!" > pid
+fi
+if [ $1 = "fetch" ]
+then
+  mkdir -p logs
+  nohup python $PYFLAGS src/py/server_fetch.py --ip_address $2 --port $3 --db_host $4 > logs/error.log 2>&1 &
   echo "$!" > pid
 fi

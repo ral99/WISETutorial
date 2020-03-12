@@ -19,8 +19,12 @@ class ServiceClientFactory:
     with open(conf_filename) as conf_file:
       self._conf = yaml.safe_load(conf_file)
 
-  def get_inbox_client(self):
-    server = random.choice(self._conf["inbox"])
+  def get_inbox_push_client(self):
+    server = random.choice(self._conf["inbox_push"])
+    return wise_inbox.Client(server["hostname"], server["port"])
+
+  def get_inbox_fetch_client(self):
+    server = random.choice(self._conf["inbox_fetch"])
     return wise_inbox.Client(server["hostname"], server["port"])
 
   def get_queue_client(self):
@@ -51,7 +55,7 @@ def main():
         channel_name=str(post["author_id"]))
     subscription_cl.close()
     # Push post to the inbox of its author's subscribers.
-    inbox_cl = cl_factory.get_inbox_client()
+    inbox_cl = cl_factory.get_inbox_push_client()
     for subscription_entry in subscriptions:
       inbox_cl.push(inbox_name=str(subscription_entry.subscriber_id),
           message_text=str(post["post_id"]))

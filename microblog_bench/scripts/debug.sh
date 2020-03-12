@@ -23,14 +23,18 @@ export WISE_HOME=$(pwd)
 export POSTGRESQL_HOST=localhost
 export AUTH_HOSTS=localhost
 export AUTH_PORT=9090
-export INBOX_HOSTS=localhost
-export INBOX_PORT=9091
+
+export INBOX_PUSH_HOSTS=localhost
+export INBOX_PUSH_PORT=9091
+export INBOX_FETCH_HOSTS=localhost
+export INBOX_FETCH_PORT=9092
+
 export MICROBLOG_HOSTS=localhost
-export MICROBLOG_PORT=9092
+export MICROBLOG_PORT=9093
 export QUEUE_HOSTS=localhost
-export QUEUE_PORT=9093
+export QUEUE_PORT=9094
 export SUB_HOSTS=localhost
-export SUB_PORT=9094
+export SUB_PORT=9095
 
 # Set PYTHONPATH.
 export PYTHONPATH=$WISE_HOME/WISELoad/include/
@@ -54,7 +58,8 @@ $WISE_HOME/WISEServices/auth/scripts/start_server.sh py $AUTH_HOSTS $AUTH_PORT $
 # Set up inbox microservice.
 $WISE_HOME/WISEServices/inbox/scripts/gen_code.sh py
 $WISE_HOME/WISEServices/inbox/scripts/setup_database.sh $POSTGRESQL_HOST
-$WISE_HOME/WISEServices/inbox/scripts/start_server.sh py $INBOX_HOSTS $INBOX_PORT $THRIFT_THREADPOOLSIZE $POSTGRESQL_HOST
+$WISE_HOME/WISEServices/inbox/scripts/start_server.sh push $INBOX_PUSH_HOSTS $INBOX_PUSH_PORT $THRIFT_THREADPOOLSIZE $POSTGRESQL_HOST
+$WISE_HOME/WISEServices/inbox/scripts/start_server.sh fetch $INBOX_FETCH_HOSTS $INBOX_FETCH_PORT $POSTGRESQL_HOST
 
 # Set up queue microservice.
 $WISE_HOME/WISEServices/queue_/scripts/gen_code.sh py
@@ -83,8 +88,8 @@ sleep 8
 # Run unit tests.
 echo "Running unit tests for the authentication microservice..."
 python $WISE_HOME/WISEServices/auth/test/py/unit.py
-echo "Running unit tests for the inbox microservice..."
-python $WISE_HOME/WISEServices/inbox/test/py/unit.py
+#echo "Running unit tests for the inbox microservice..."
+#python $WISE_HOME/WISEServices/inbox/test/py/unit.py
 echo "Running unit tests for the queue microservice..."
 python $WISE_HOME/WISEServices/queue_/test/py/unit.py
 echo "Running unit tests for the subscription microservice..."

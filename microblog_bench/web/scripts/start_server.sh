@@ -12,11 +12,18 @@ for authentication_host in $AUTH_HOSTS; do
   echo "  - hostname: $authentication_host" >> conf/services.yml
   echo "    port: $AUTH_PORT" >> conf/services.yml
 done
-echo "inbox:" >> conf/services.yml
-for inbox_host in $INBOX_HOSTS; do
-  echo "  - hostname: $inbox_host" >> conf/services.yml
-  echo "    port: $INBOX_PORT" >> conf/services.yml
+
+echo "inbox_push:" >> conf/services.yml
+for inbox_push_host in $INBOX_PUSH_HOSTS; do
+  echo "  - hostname: $inbox_push_host" >> conf/services.yml
+  echo "    port: $INBOX_PUSH_PORT" >> conf/services.yml
 done
+echo "inbox_fetch:" >> conf/services.yml
+for inbox_fetch_host in $INBOX_FETCH_HOSTS; do
+  echo "  - hostname: $inbox_fetch_host" >> conf/services.yml
+  echo "    port: $INBOX_FETCH_PORT" >> conf/services.yml
+done
+
 echo "microblog:" >> conf/services.yml
 for microblog_host in $MICROBLOG_HOSTS; do
   echo "  - hostname: $microblog_host" >> conf/services.yml

@@ -9,7 +9,7 @@ source conf/config.sh
 
 
 # Copy variables.
-all_hosts="$CLIENT_HOSTS $WEB_HOSTS $POSTGRESQL_HOST $WORKER_HOSTS $MICROBLOG_HOSTS $AUTH_HOSTS $INBOX_HOSTS $QUEUE_HOSTS $SUB_HOSTS"
+all_hosts="$CLIENT_HOSTS $WEB_HOSTS $POSTGRESQL_HOST $WORKER_HOSTS $MICROBLOG_HOSTS $AUTH_HOSTS $INBOX_PUSH_HOSTS $INBOX_FETCH_HOSTS $QUEUE_HOSTS $SUB_HOSTS"
 
 
 echo "[$(date +%s)] Socket setup:"
@@ -83,7 +83,7 @@ for host in $all_hosts; do
     sudo DEBIAN_FRONTEND=noninteractive apt-get install -y git
     ssh-keyscan -H github.com >> ~/.ssh/known_hosts
     rm -rf WISETutorial
-    git clone git@github.com:coc-gatech-newelba/WISETutorial.git
+    git clone git@github.com:ral99/WISETutorial.git
     rm -rf $wise_home
     mv WISETutorial $fs_rootdir
 
@@ -175,11 +175,11 @@ for session in ${sessions[*]}; do
 done
 
 
-echo "[$(date +%s)] Inbox microservice setup:"
+echo "[$(date +%s)] Inbox::push microservice setup:"
 sessions=()
 n_sessions=0
-for host in $INBOX_HOSTS; do
-  echo "  [$(date +%s)] Setting up inbox microservice on host $host"
+for host in $INBOX_PUSH_HOSTS; do
+  echo "  [$(date +%s)] Setting up inbox::push microservice on host $host"
 
   ssh -T -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
       -o BatchMode=yes $USERNAME@$host "
@@ -201,7 +201,43 @@ for host in $INBOX_HOSTS; do
     # Export configuration parameters.
     export WISE_DEBUG=$WISE_DEBUG
 
-    $wise_home/WISEServices/inbox/scripts/start_server.sh py 0.0.0.0 $INBOX_PORT $INBOX_THREADPOOLSIZE $POSTGRESQL_HOST
+    $wise_home/WISEServices/inbox/scripts/start_server.sh push 0.0.0.0 $INBOX_PUSH_PORT $INBOX_PUSH_THREADPOOLSIZE $POSTGRESQL_HOST
+  " &
+  sessions[$n_sessions]=$!
+  let n_sessions=n_sessions+1
+done
+for session in ${sessions[*]}; do
+  wait $session
+done
+
+
+echo "[$(date +%s)] Inbox::fetch microservice setup:"
+sessions=()
+n_sessions=0
+for host in $INBOX_FETCH_HOSTS; do
+  echo "  [$(date +%s)] Setting up inbox::fetch microservice on host $host"
+
+  ssh -T -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
+      -o BatchMode=yes $USERNAME@$host "
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y postgresql-client-common
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y postgresql-client-10
+
+    # Install Python dependencies.
+    source $wise_home/.env/bin/activate
+    pip install click
+    pip install psycopg2-binary
+    pip install thrift
+
+    # Generate Thrift code.
+    $wise_home/WISEServices/inbox/scripts/gen_code.sh py
+
+    # Setup database.
+    # $wise_home/WISEServices/inbox/scripts/setup_database.sh $POSTGRESQL_HOST
+
+    # Export configuration parameters.
+    export WISE_DEBUG=$WISE_DEBUG
+
+    $wise_home/WISEServices/inbox/scripts/start_server.sh fetch 0.0.0.0 $INBOX_FETCH_PORT $POSTGRESQL_HOST
   " &
   sessions[$n_sessions]=$!
   let n_sessions=n_sessions+1
@@ -339,8 +375,10 @@ for host in $WORKER_HOSTS; do
 
     # Export configuration parameters.
     export NUM_WORKERS=$NUM_WORKERS
-    export INBOX_HOSTS=$INBOX_HOSTS
-    export INBOX_PORT=$INBOX_PORT
+    export INBOX_PUSH_HOSTS=$INBOX_PUSH_HOSTS
+    export INBOX_FETCH_HOSTS=$INBOX_FETCH_HOSTS
+    export INBOX_PUSH_PORT=$INBOX_PUSH_PORT
+    export INBOX_FETCH_PORT=$INBOX_FETCH_PORT
     export QUEUE_HOSTS=$QUEUE_HOSTS
     export QUEUE_PORT=$QUEUE_PORT
     export SUB_HOSTS=$SUB_HOSTS
@@ -407,8 +445,10 @@ for host in $WEB_HOSTS; do
     export APACHE_WSGIFILENAME=web.wsgi
     export AUTH_HOSTS=$AUTH_HOSTS
     export AUTH_PORT=$AUTH_PORT
-    export INBOX_HOSTS=$INBOX_HOSTS
-    export INBOX_PORT=$INBOX_PORT
+    export INBOX_PUSH_HOSTS=$INBOX_PUSH_HOSTS
+    export INBOX_PUSH_PORT=$INBOX_PUSH_PORT
+    export INBOX_FETCH_HOSTS=$INBOX_FETCH_HOSTS
+    export INBOX_FETCH_PORT=$INBOX_FETCH_PORT
     export MICROBLOG_HOSTS=$MICROBLOG_HOSTS
     export MICROBLOG_PORT=$MICROBLOG_PORT
     export QUEUE_HOSTS=$QUEUE_HOSTS
@@ -709,8 +749,8 @@ for host in $QUEUE_HOSTS; do
 done
 
 
-echo "[$(date +%s)] Inbox microservice tear down:"
-for host in $INBOX_HOSTS; do
+echo "[$(date +%s)] Inbox::push microservice tear down:"
+for host in $INBOX_PUSH_HOSTS; do
   echo "  [$(date +%s)] Tearing down inbox microservice on host $host"
   ssh -T -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
       -o BatchMode=yes $USERNAME@$host "
@@ -728,7 +768,36 @@ for host in $INBOX_HOSTS; do
     cat /proc/spec_connect > logs/spec_connect.csv
     cat /proc/spec_sendto > logs/spec_sendto.csv
     cat /proc/spec_recvfrom > logs/spec_recvfrom.csv
-    tar -C logs -czf log-inbox-\$(echo \$(hostname) | awk -F'[-.]' '{print \$1\$2}').tar.gz ./
+    tar -C logs -czf log-inbox_push-\$(echo \$(hostname) | awk -F'[-.]' '{print \$1\$2}').tar.gz ./
+
+    # Stop event monitors.
+    sudo rmmod spec_connect
+    sudo rmmod spec_sendto
+    sudo rmmod spec_recvfrom
+  "
+done
+
+
+echo "[$(date +%s)] Inbox::fetch microservice tear down:"
+for host in $INBOX_FETCH_HOSTS; do
+  echo "  [$(date +%s)] Tearing down inbox microservice on host $host"
+  ssh -T -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no \
+      -o BatchMode=yes $USERNAME@$host "
+    # Stop server.
+    $wise_home/WISEServices/inbox/scripts/stop_server.sh
+
+    # Stop resource monitors.
+    sudo pkill collectl
+    sleep 8
+
+    # Collect log data.
+    mkdir logs
+    mv $wise_home/collectl/data/coll-* logs/
+    gzip -d logs/coll-*
+    cat /proc/spec_connect > logs/spec_connect.csv
+    cat /proc/spec_sendto > logs/spec_sendto.csv
+    cat /proc/spec_recvfrom > logs/spec_recvfrom.csv
+    tar -C logs -czf log-inbox_fetch-\$(echo \$(hostname) | awk -F'[-.]' '{print \$1\$2}').tar.gz ./
 
     # Stop event monitors.
     sudo rmmod spec_connect
